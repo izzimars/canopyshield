@@ -1,0 +1,1089 @@
+2026-05-07 11:55:25.060 WAT [8442] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-07 11:55:25.065 WAT [8442] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-07 11:55:25.065 WAT [8442] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-07 11:55:25.066 WAT [8442] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-07 11:55:25.115 WAT [8443] LOG:  database system was shut down at 2026-05-04 16:47:52 WAT
+2026-05-07 11:55:25.129 WAT [8442] LOG:  database system is ready to accept connections
+2026-05-07 15:24:57.961 WAT [12532] ERROR:  relation "migrations" does not exist at character 22
+2026-05-07 15:24:57.961 WAT [12532] STATEMENT:  select id, name from migrations order by run_on desc limit 20;
+2026-05-07 15:25:40.458 WAT [12548] ERROR:  syntax error at or near "SERIAL" at character 79
+2026-05-07 15:25:40.458 WAT [12548] STATEMENT:  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+	
+	CREATE TABLE schools (
+	  id numeric SERIAL UNIQUE,
+	  school_uuid text UNIQUE PRIMARY KEY DEFAULT ('sch' || gen_random_uuid()::text),
+	  name text NOT NULL,
+	  address text,
+	  contact_email text,
+	  lat numeric(10,7) NOT NULL,
+	  lng numeric(10,7) NOT NULL,
+	  current_risk_score integer NOT NULL DEFAULT 0,
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE users (
+	  id numeric SERIAL UNIQUE,
+	  user_uuid text UNIQUE PRIMARY KEY DEFAULT('user' || gen_random_uuid()::text),
+	  school_id text REFERENCES schools(school_uuid) ON DELETE SET NULL,
+	  email text NOT NULL UNIQUE,
+	  hashed_password text NOT NULL,
+	  role text NOT NULL DEFAULT 'user',
+	  verified_at timestamptz,
+	  push_subscription jsonb,
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE otp_codes (
+	  id numeric SERIAL UNIQUE,
+	  otp_uuid text UNIQUE PRIMARY KEY DEFAULT('otp' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  code text NOT NULL,
+	  expires_at timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE risk_snapshots (
+	  id numeric SERIAL UNIQUE,
+	  risk_uuid text UNIQUE PRIMARY KEY DEFAULT('risk' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  heat_score integer NOT NULL,
+	  aqi_score integer NOT NULL,
+	  combined_score integer NOT NULL,
+	  raw_temp double precision NOT NULL,
+	  raw_humidity double precision NOT NULL,
+	  raw_uv double precision NOT NULL,
+	  raw_aqi integer NOT NULL,
+	  captured_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE engagement_events (
+	  id numeric SERIAL UNIQUE,
+	  engagement_uuid text UNIQUE PRIMARY KEY DEFAULT('eng' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  type text NOT NULL,
+	  points integer NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE school_points (
+	  id numeric SERIAL UNIQUE,
+	  points_uuid text UNIQUE PRIMARY KEY DEFAULT('points' || gen_random_uuid()::text),
+	  school_id text PRIMARY KEY REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  total integer NOT NULL DEFAULT 0,
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE tree_requests (
+	  id numeric SERIAL UNIQUE,
+	  request_uuid text UNIQUE PRIMARY KEY DEFAULT('req' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  status text NOT NULL DEFAULT 'pending',
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  confirmed_at timestamptz
+	);
+	
+	CREATE TABLE trees (
+	  id numeric SERIAL UNIQUE,
+	  tree_uuid text UNIQUE PRIMARY KEY DEFAULT('tree' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  request_id text REFERENCES tree_requests(request_uuid) ON DELETE SET NULL,
+	  lat numeric(10,7),
+	  lng numeric(10,7),
+	  photo_url text,
+	  planted_at timestamptz,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE badges (
+	  id numeric SERIAL UNIQUE,
+	  badge_uuid text UNIQUE PRIMARY KEY DEFAULT('badge' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  type text NOT NULL,
+	  awarded_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE quiz_questions (
+	  id numeric SERIAL UNIQUE,
+	  question_uuid text UNIQUE PRIMARY KEY DEFAULT('quiz' || gen_random_uuid()::text),
+	  question_text text NOT NULL,
+	  options jsonb NOT NULL,
+	  correct_index integer NOT NULL,
+	  topic_tag text NOT NULL,
+	  scheduled_date timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE push_subscriptions (
+	  id numeric SERIAL UNIQUE,
+	  subscription_uuid text UNIQUE PRIMARY KEY DEFAULT('push' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  endpoint text NOT NULL UNIQUE,
+	  p256dh text NOT NULL,
+	  auth text NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE alert_preferences (
+	  id numeric SERIAL UNIQUE,
+	  user_id text PRIMARY KEY REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  risk_threshold integer NOT NULL DEFAULT 60,
+	  channels text[] NOT NULL DEFAULT ARRAY['email']::text[],
+	  frequency text NOT NULL DEFAULT 'immediate',
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE INDEX idx_users_school_id ON users(school_id);
+	CREATE INDEX idx_risk_snapshots_school_id_captured_at ON risk_snapshots(school_id, captured_at DESC);
+	CREATE INDEX idx_engagement_events_user_id_created_at ON engagement_events(user_id, created_at DESC);
+	CREATE INDEX idx_engagement_events_school_id_created_at ON engagement_events(school_id, created_at DESC);
+	CREATE INDEX idx_tree_requests_school_id_status ON tree_requests(school_id, status);
+	CREATE INDEX idx_trees_school_id_planted_at ON trees(school_id, planted_at DESC);
+	CREATE INDEX idx_badges_user_id_type ON badges(user_id, type);
+	CREATE INDEX idx_quiz_questions_scheduled_date ON quiz_questions(scheduled_date);
+	CREATE INDEX idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+	
+2026-05-07 15:26:50.164 WAT [12565] ERROR:  relation "users" already exists
+2026-05-07 15:26:50.164 WAT [12565] STATEMENT:  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+	
+	CREATE TABLE schools (
+	  id serial UNIQUE,
+	  school_uuid text UNIQUE PRIMARY KEY DEFAULT ('sch' || gen_random_uuid()::text),
+	  name text NOT NULL,
+	  address text,
+	  contact_email text,
+	  lat numeric(10,7) NOT NULL,
+	  lng numeric(10,7) NOT NULL,
+	  current_risk_score integer NOT NULL DEFAULT 0,
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE users (
+	  id serial UNIQUE,
+	  user_uuid text UNIQUE PRIMARY KEY DEFAULT('user' || gen_random_uuid()::text),
+	  school_id text REFERENCES schools(school_uuid) ON DELETE SET NULL,
+	  email text NOT NULL UNIQUE,
+	  hashed_password text NOT NULL,
+	  role text NOT NULL DEFAULT 'user',
+	  verified_at timestamptz,
+	  push_subscription jsonb,
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE otp_codes (
+	  id serial UNIQUE,
+	  otp_uuid text UNIQUE PRIMARY KEY DEFAULT('otp' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  code text NOT NULL,
+	  expires_at timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE risk_snapshots (
+	  id serial UNIQUE,
+	  risk_uuid text UNIQUE PRIMARY KEY DEFAULT('risk' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  heat_score integer NOT NULL,
+	  aqi_score integer NOT NULL,
+	  combined_score integer NOT NULL,
+	  raw_temp double precision NOT NULL,
+	  raw_humidity double precision NOT NULL,
+	  raw_uv double precision NOT NULL,
+	  raw_aqi integer NOT NULL,
+	  captured_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE engagement_events (
+	  id serial UNIQUE,
+	  engagement_uuid text UNIQUE PRIMARY KEY DEFAULT('eng' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  type text NOT NULL,
+	  points integer NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE school_points (
+	  id serial UNIQUE,
+	  points_uuid text UNIQUE DEFAULT('points' || gen_random_uuid()::text),
+	  school_id text PRIMARY KEY REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  total integer NOT NULL DEFAULT 0,
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE tree_requests (
+	  id serial UNIQUE,
+	  request_uuid text UNIQUE PRIMARY KEY DEFAULT('req' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  status text NOT NULL DEFAULT 'pending',
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  confirmed_at timestamptz
+	);
+	
+	CREATE TABLE trees (
+	  id serial UNIQUE,
+	  tree_uuid text UNIQUE PRIMARY KEY DEFAULT('tree' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  request_id text REFERENCES tree_requests(request_uuid) ON DELETE SET NULL,
+	  lat numeric(10,7),
+	  lng numeric(10,7),
+	  photo_url text,
+	  planted_at timestamptz,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE badges (
+	  id serial UNIQUE,
+	  badge_uuid text UNIQUE PRIMARY KEY DEFAULT('badge' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  type text NOT NULL,
+	  awarded_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE quiz_questions (
+	  id serial UNIQUE,
+	  question_uuid text UNIQUE PRIMARY KEY DEFAULT('quiz' || gen_random_uuid()::text),
+	  question_text text NOT NULL,
+	  options jsonb NOT NULL,
+	  correct_index integer NOT NULL,
+	  topic_tag text NOT NULL,
+	  scheduled_date timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE push_subscriptions (
+	  id serial UNIQUE,
+	  subscription_uuid text UNIQUE PRIMARY KEY DEFAULT('push' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  endpoint text NOT NULL UNIQUE,
+	  p256dh text NOT NULL,
+	  auth text NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE alert_preferences (
+	  id serial UNIQUE,
+	  user_id text PRIMARY KEY REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  risk_threshold integer NOT NULL DEFAULT 60,
+	  channels text[] NOT NULL DEFAULT ARRAY['email']::text[],
+	  frequency text NOT NULL DEFAULT 'immediate',
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE INDEX idx_users_school_id ON users(school_id);
+	CREATE INDEX idx_risk_snapshots_school_id_captured_at ON risk_snapshots(school_id, captured_at DESC);
+	CREATE INDEX idx_engagement_events_user_id_created_at ON engagement_events(user_id, created_at DESC);
+	CREATE INDEX idx_engagement_events_school_id_created_at ON engagement_events(school_id, created_at DESC);
+	CREATE INDEX idx_tree_requests_school_id_status ON tree_requests(school_id, status);
+	CREATE INDEX idx_trees_school_id_planted_at ON trees(school_id, planted_at DESC);
+	CREATE INDEX idx_badges_user_id_type ON badges(user_id, type);
+	CREATE INDEX idx_quiz_questions_scheduled_date ON quiz_questions(scheduled_date);
+	CREATE INDEX idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+	
+2026-05-07 15:30:37.979 WAT [12612] ERROR:  column "user_uuid" referenced in foreign key constraint does not exist
+2026-05-07 15:30:37.979 WAT [12612] STATEMENT:  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+	
+	CREATE TABLE IF NOT EXISTS schools (
+	  id serial UNIQUE,
+	  school_uuid text UNIQUE PRIMARY KEY DEFAULT ('sch' || gen_random_uuid()::text),
+	  name text NOT NULL,
+	  address text,
+	  contact_email text,
+	  lat numeric(10,7) NOT NULL,
+	  lng numeric(10,7) NOT NULL,
+	  current_risk_score integer NOT NULL DEFAULT 0,
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS users (
+	  id serial UNIQUE,
+	  user_uuid text UNIQUE PRIMARY KEY DEFAULT('user' || gen_random_uuid()::text),
+	  school_id text REFERENCES schools(school_uuid) ON DELETE SET NULL,
+	  email text NOT NULL UNIQUE,
+	  hashed_password text NOT NULL,
+	  role text NOT NULL DEFAULT 'user',
+	  verified_at timestamptz,
+	  push_subscription jsonb,
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS otp_codes (
+	  id serial UNIQUE,
+	  otp_uuid text UNIQUE PRIMARY KEY DEFAULT('otp' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  code text NOT NULL,
+	  expires_at timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS risk_snapshots (
+	  id serial UNIQUE,
+	  risk_uuid text UNIQUE PRIMARY KEY DEFAULT('risk' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  heat_score integer NOT NULL,
+	  aqi_score integer NOT NULL,
+	  combined_score integer NOT NULL,
+	  raw_temp double precision NOT NULL,
+	  raw_humidity double precision NOT NULL,
+	  raw_uv double precision NOT NULL,
+	  raw_aqi integer NOT NULL,
+	  captured_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS engagement_events (
+	  id serial UNIQUE,
+	  engagement_uuid text UNIQUE PRIMARY KEY DEFAULT('eng' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  type text NOT NULL,
+	  points integer NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS school_points (
+	  id serial UNIQUE,
+	  points_uuid text UNIQUE DEFAULT('points' || gen_random_uuid()::text),
+	  school_id text PRIMARY KEY REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  total integer NOT NULL DEFAULT 0,
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS tree_requests (
+	  id serial UNIQUE,
+	  request_uuid text UNIQUE PRIMARY KEY DEFAULT('req' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  status text NOT NULL DEFAULT 'pending',
+	  created_at timestamptz NOT NULL DEFAULT now(),
+	  confirmed_at timestamptz
+	);
+	
+	CREATE TABLE IF NOT EXISTS trees (
+	  id serial UNIQUE,
+	  tree_uuid text UNIQUE PRIMARY KEY DEFAULT('tree' || gen_random_uuid()::text),
+	  school_id text NOT NULL REFERENCES schools(school_uuid) ON DELETE CASCADE,
+	  request_id text REFERENCES tree_requests(request_uuid) ON DELETE SET NULL,
+	  lat numeric(10,7),
+	  lng numeric(10,7),
+	  photo_url text,
+	  planted_at timestamptz,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS badges (
+	  id serial UNIQUE,
+	  badge_uuid text UNIQUE PRIMARY KEY DEFAULT('badge' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  type text NOT NULL,
+	  awarded_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS quiz_questions (
+	  id serial UNIQUE,
+	  question_uuid text UNIQUE PRIMARY KEY DEFAULT('quiz' || gen_random_uuid()::text),
+	  question_text text NOT NULL,
+	  options jsonb NOT NULL,
+	  correct_index integer NOT NULL,
+	  topic_tag text NOT NULL,
+	  scheduled_date timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS push_subscriptions (
+	  id serial UNIQUE,
+	  subscription_uuid text UNIQUE PRIMARY KEY DEFAULT('push' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  endpoint text NOT NULL UNIQUE,
+	  p256dh text NOT NULL,
+	  auth text NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE TABLE IF NOT EXISTS alert_preferences (
+	  id serial UNIQUE,
+	  user_id text PRIMARY KEY REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  risk_threshold integer NOT NULL DEFAULT 60,
+	  channels text[] NOT NULL DEFAULT ARRAY['email']::text[],
+	  frequency text NOT NULL DEFAULT 'immediate',
+	  updated_at timestamptz NOT NULL DEFAULT now()
+	);
+	
+	CREATE INDEX IF NOT EXISTS idx_users_school_id ON users(school_id);
+	CREATE INDEX IF NOT EXISTS idx_risk_snapshots_school_id_captured_at ON risk_snapshots(school_id, captured_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_engagement_events_user_id_created_at ON engagement_events(user_id, created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_engagement_events_school_id_created_at ON engagement_events(school_id, created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_tree_requests_school_id_status ON tree_requests(school_id, status);
+	CREATE INDEX IF NOT EXISTS idx_trees_school_id_planted_at ON trees(school_id, planted_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_badges_user_id_type ON badges(user_id, type);
+	CREATE INDEX IF NOT EXISTS idx_quiz_questions_scheduled_date ON quiz_questions(scheduled_date);
+	CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+	
+2026-05-07 15:33:26.468 WAT [12651] ERROR:  column "user_uuid" referenced in foreign key constraint does not exist
+2026-05-07 15:33:26.468 WAT [12651] STATEMENT:  CREATE TABLE IF NOT EXISTS otp_codes (
+	  id serial UNIQUE,
+	  otp_uuid text UNIQUE PRIMARY KEY DEFAULT('otp' || gen_random_uuid()::text),
+	  user_id text NOT NULL REFERENCES users(user_uuid) ON DELETE CASCADE,
+	  code text NOT NULL,
+	  expires_at timestamptz NOT NULL,
+	  created_at timestamptz NOT NULL DEFAULT now()
+	)
+2026-05-07 15:36:33.917 WAT [12704] ERROR:  column "school_id" does not exist
+2026-05-07 15:36:33.917 WAT [12704] STATEMENT:  CREATE INDEX IF NOT EXISTS idx_users_school_id ON users(school_id)
+2026-05-07 15:36:48.444 WAT [12712] ERROR:  column "school_id" does not exist
+2026-05-07 15:36:48.444 WAT [12712] STATEMENT:  CREATE INDEX IF NOT EXISTS idx_users_school_id ON users(school_id)
+2026-05-07 17:07:52.690 WAT [14920] ERROR:  foreign key constraint "refresh_tokens_user_id_fkey" cannot be implemented
+2026-05-07 17:07:52.690 WAT [14920] DETAIL:  Key columns "user_id" and "id" are of incompatible types: uuid and integer.
+2026-05-07 17:07:52.690 WAT [14920] STATEMENT:  -- refresh_tokens table for token rotation & revocation
+	CREATE TABLE IF NOT EXISTS refresh_tokens (
+	  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	  token_hash TEXT NOT NULL,
+	  jti TEXT NOT NULL UNIQUE,
+	  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	  revoked BOOLEAN NOT NULL DEFAULT false,
+	  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+	)
+2026-05-07 17:09:08.393 WAT [14938] ERROR:  unterminated dollar-quoted string at or near "$$
+	BEGIN
+	  ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_fkey 
+	    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE" at character 137
+2026-05-07 17:09:08.393 WAT [14938] STATEMENT:  -- Add FK constraints separately in a safer way
+	-- (using separate statements to handle cases where constraints might already exist)
+	DO $$
+	BEGIN
+	  ALTER TABLE refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_fkey 
+	    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+2026-05-07 17:10:43.411 WAT [14975] ERROR:  foreign key constraint "refresh_tokens_user_id_fkey" cannot be implemented
+2026-05-07 17:10:43.411 WAT [14975] DETAIL:  Key columns "user_id" and "id" are of incompatible types: uuid and integer.
+2026-05-07 17:10:43.411 WAT [14975] STATEMENT:  -- Add foreign key constraints for auth tables
+	ALTER TABLE refresh_tokens
+	ADD CONSTRAINT refresh_tokens_user_id_fkey
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+2026-05-07 17:10:54.463 WAT [14985] ERROR:  foreign key constraint "refresh_tokens_user_id_fkey" cannot be implemented
+2026-05-07 17:10:54.463 WAT [14985] DETAIL:  Key columns "user_id" and "id" are of incompatible types: uuid and integer.
+2026-05-07 17:10:54.463 WAT [14985] STATEMENT:  -- Add foreign key constraints for auth tables
+	ALTER TABLE refresh_tokens
+	ADD CONSTRAINT refresh_tokens_user_id_fkey
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+2026-05-07 17:11:36.500 WAT [15008] ERROR:  foreign key constraint "refresh_tokens_user_id_fkey" cannot be implemented
+2026-05-07 17:11:36.500 WAT [15008] DETAIL:  Key columns "user_id" and "user_uuid" are of incompatible types: uuid and text.
+2026-05-07 17:11:36.500 WAT [15008] STATEMENT:  -- Add foreign key constraints for auth tables
+	-- Note: Reference user_uuid (UUID) not id (INTEGER)
+	ALTER TABLE refresh_tokens
+	ADD CONSTRAINT refresh_tokens_user_id_fkey
+	FOREIGN KEY (user_id) REFERENCES users(user_uuid) ON DELETE CASCADE
+2026-05-07 20:27:16.792 WAT [8442] LOG:  received smart shutdown request
+2026-05-07 20:27:16.796 WAT [8442] LOG:  background worker "logical replication launcher" (PID 8449) exited with exit code 1
+2026-05-07 20:27:16.796 WAT [8444] LOG:  shutting down
+2026-05-07 20:27:16.818 WAT [8442] LOG:  database system is shut down
+2026-05-09 19:27:23.424 WAT [9890] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-09 19:27:23.438 WAT [9890] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-09 19:27:23.438 WAT [9890] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-09 19:27:23.439 WAT [9890] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-09 19:27:23.485 WAT [9891] LOG:  database system was shut down at 2026-05-07 20:27:16 WAT
+2026-05-09 19:27:23.497 WAT [9890] LOG:  database system is ready to accept connections
+2026-05-09 20:11:42.453 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:43.130 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:43.199 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:43.811 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:43.848 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:44.497 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:44.500 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:45.192 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:45.192 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:45.876 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:45.927 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:46.648 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:46.665 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:47.320 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:47.321 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:48.090 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:48.090 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:11:48.770 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:13:53.613 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:13:53.835 WAT [9896] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No space left on device
+2026-05-09 20:13:55.177 WAT [9896] LOG:  could not write temporary statistics file "pg_stat_tmp/db_819037.tmp": No space left on device
+2026-05-11 13:11:02.914 WAT [45478] FATAL:  lock file "postmaster.pid" already exists
+2026-05-11 13:11:02.914 WAT [45478] HINT:  Is another postmaster (PID 9890) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-11 13:11:12.013 WAT [45645] FATAL:  lock file "postmaster.pid" already exists
+2026-05-11 13:11:12.013 WAT [45645] HINT:  Is another postmaster (PID 9890) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-11 13:30:00.053 WAT [48188] ERROR:  column "tree_count" does not exist at character 86
+2026-05-11 13:30:00.053 WAT [48188] STATEMENT:  
+	    SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    ORDER BY name ASC
+	  
+2026-05-11 14:00:00.180 WAT [48949] ERROR:  column "tree_count" does not exist at character 86
+2026-05-11 14:00:00.180 WAT [48949] STATEMENT:  
+	    SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    ORDER BY name ASC
+	  
+2026-05-11 16:30:00.452 WAT [49694] ERROR:  column "tree_count" does not exist at character 86
+2026-05-11 16:30:00.452 WAT [49694] STATEMENT:  
+	    SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    ORDER BY name ASC
+	  
+2026-05-11 17:00:00.081 WAT [50012] ERROR:  column "tree_count" does not exist at character 86
+2026-05-11 17:00:00.081 WAT [50012] STATEMENT:  
+	    SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    ORDER BY name ASC
+	  
+2026-05-11 17:30:00.024 WAT [50758] ERROR:  column "tree_count" does not exist at character 86
+2026-05-11 17:30:00.024 WAT [50758] STATEMENT:  
+	    SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    ORDER BY name ASC
+	  
+2026-05-12 09:19:24.850 WAT [3628] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-12 09:19:24.852 WAT [3628] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-12 09:19:24.852 WAT [3628] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-12 09:19:24.853 WAT [3628] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-12 09:19:24.893 WAT [3629] LOG:  database system was interrupted; last known up at 2026-05-09 19:32:23 WAT
+2026-05-12 09:19:25.794 WAT [3629] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-05-12 09:19:25.808 WAT [3629] LOG:  redo starts at 0/78087250
+2026-05-12 09:19:25.808 WAT [3629] LOG:  invalid record length at 0/78087338: wanted 24, got 0
+2026-05-12 09:19:25.808 WAT [3629] LOG:  redo done at 0/78087300 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-05-12 09:19:25.835 WAT [3628] LOG:  database system is ready to accept connections
+2026-05-12 09:19:30.945 WAT [3802] FATAL:  lock file "postmaster.pid" already exists
+2026-05-12 09:19:30.945 WAT [3802] HINT:  Is another postmaster (PID 3628) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-12 10:24:04.172 WAT [5406] ERROR:  foreign key constraint "refresh_tokens_user_id_fkey" cannot be implemented
+2026-05-12 10:24:04.172 WAT [5406] DETAIL:  Key columns "user_id" and "user_uuid" are of incompatible types: uuid and text.
+2026-05-12 10:24:04.172 WAT [5406] STATEMENT:  -- Add foreign key constraints for auth tables
+	-- Note: Reference user_uuid (UUID) not id (INTEGER)
+	ALTER TABLE refresh_tokens
+	ADD CONSTRAINT refresh_tokens_user_id_fkey
+	FOREIGN KEY (user_id) REFERENCES users(user_uuid) ON DELETE CASCADE
+2026-05-12 11:19:41.350 WAT [7642] ERROR:  column "username" of relation "users" does not exist at character 22
+2026-05-12 11:19:41.350 WAT [7642] STATEMENT:  INSERT INTO "users" ("username", "email", "hashed_password", "role", "verified_at") VALUES
+	('Admin_One', 'superadmin@yopmail.com', '$2b$12$CN6V9HbS9No0YVVAKs18e.0ERd4cY7wSpKyCHhf9VBOBVvsChGfRm', 'admin', now())
+2026-05-12 11:21:01.797 WAT [7921] ERROR:  foreign key constraint "refresh_tokens_user_id_fkey" cannot be implemented
+2026-05-12 11:21:01.797 WAT [7921] DETAIL:  Key columns "user_id" and "user_uuid" are of incompatible types: uuid and text.
+2026-05-12 11:21:01.797 WAT [7921] STATEMENT:  -- Add foreign key constraints for auth tables
+	-- Note: Reference user_uuid (UUID) not id (INTEGER)
+	ALTER TABLE refresh_tokens
+	ADD CONSTRAINT refresh_tokens_user_id_fkey
+	FOREIGN KEY (user_id) REFERENCES users(user_uuid) ON DELETE CASCADE
+2026-05-12 15:27:08.389 WAT [89482] FATAL:  database "canopyshield_test" does not exist
+2026-05-12 15:27:11.406 WAT [89485] FATAL:  database "canopyshield_test" does not exist
+2026-05-12 15:27:51.270 WAT [89740] FATAL:  database "canopyshield_test" does not exist
+2026-05-12 15:27:54.282 WAT [89741] FATAL:  database "canopyshield_test" does not exist
+2026-05-12 17:26:32.666 WAT [3628] LOG:  received smart shutdown request
+2026-05-12 17:26:32.671 WAT [3628] LOG:  background worker "logical replication launcher" (PID 3639) exited with exit code 1
+2026-05-12 17:26:32.671 WAT [3634] LOG:  shutting down
+2026-05-12 17:26:32.688 WAT [3628] LOG:  database system is shut down
+2026-05-13 05:15:48.731 WAT [5998] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-13 05:15:48.736 WAT [5998] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-13 05:15:48.736 WAT [5998] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-13 05:15:48.736 WAT [5998] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-13 05:15:48.804 WAT [5999] LOG:  database system was shut down at 2026-05-12 17:26:32 WAT
+2026-05-13 05:15:48.817 WAT [5998] LOG:  database system is ready to accept connections
+2026-05-13 05:21:06.962 WAT [6271] FATAL:  database "canopyshield_test" does not exist
+2026-05-13 05:28:16.220 WAT [6508] FATAL:  database "canopyshield_test" does not exist
+2026-05-13 05:41:37.534 WAT [5998] LOG:  received smart shutdown request
+2026-05-13 05:41:37.537 WAT [5998] LOG:  background worker "logical replication launcher" (PID 6005) exited with exit code 1
+2026-05-13 05:41:37.537 WAT [6000] LOG:  shutting down
+2026-05-13 05:41:37.556 WAT [5998] LOG:  database system is shut down
+2026-05-13 23:06:30.876 WAT [10347] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-13 23:06:30.878 WAT [10347] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-13 23:06:30.878 WAT [10347] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-13 23:06:30.879 WAT [10347] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-13 23:06:30.945 WAT [10348] LOG:  database system was shut down at 2026-05-13 05:41:37 WAT
+2026-05-13 23:06:30.968 WAT [10347] LOG:  database system is ready to accept connections
+2026-05-13 23:40:11.197 WAT [14605] ERROR:  null value in column "username" of relation "users" violates not-null constraint
+2026-05-13 23:40:11.197 WAT [14605] DETAIL:  Failing row contains (1, user441f3518-e2dd-41dd-843e-4dff7ecbbb40, null, null, superadmin@yopmail.com, $2b$12$CN6V9HbS9No0YVVAKs18e.0ERd4cY7wSpKyCHhf9VBOBVvsChGfRm, admin, null, null, 2026-05-13 23:40:11.194764+01, 2026-05-13 23:40:11.194764+01, t).
+2026-05-13 23:40:11.197 WAT [14605] STATEMENT:  INSERT INTO "users" ("email", "hashed_password", "is_verified", "role") VALUES
+	('superadmin@yopmail.com', '$2b$12$CN6V9HbS9No0YVVAKs18e.0ERd4cY7wSpKyCHhf9VBOBVvsChGfRm', true, 'admin')
+2026-05-13 23:45:27.477 WAT [15890] FATAL:  database "canopyshield_test" does not exist
+2026-05-13 23:50:47.751 WAT [16351] ERROR:  relation "users" does not exist at character 15
+2026-05-13 23:50:47.751 WAT [16351] STATEMENT:  SELECT 1 FROM users WHERE lower(email) = lower('student@test.dev')
+2026-05-13 23:52:16.241 WAT [16503] ERROR:  relation "users" does not exist at character 15
+2026-05-13 23:52:16.241 WAT [16503] STATEMENT:  SELECT 1 FROM users WHERE lower(email) = lower('student@test.dev')
+2026-05-13 23:58:09.838 WAT [17852] ERROR:  relation "users" does not exist at character 15
+2026-05-13 23:58:09.838 WAT [17852] STATEMENT:  SELECT 1 FROM users WHERE lower(email) = lower('student@test.dev')
+2026-05-14 00:02:00.088 WAT [18048] ERROR:  relation "users" does not exist at character 15
+2026-05-14 00:02:00.088 WAT [18048] STATEMENT:  SELECT 1 FROM users WHERE lower(email) = lower('student@test.dev')
+2026-05-14 00:02:38.075 WAT [18464] ERROR:  relation "users" does not exist at character 15
+2026-05-14 00:02:38.075 WAT [18464] STATEMENT:  SELECT 1 FROM users WHERE lower(email) = lower('student@test.dev')
+2026-05-14 00:03:58.135 WAT [19284] FATAL:  database "canopyshield_test" does not exist
+2026-05-14 00:05:40.324 WAT [19729] ERROR:  relation "users" does not exist at character 15
+2026-05-14 00:05:40.324 WAT [19729] STATEMENT:  SELECT 1 FROM users WHERE lower(email) = lower('student@test.dev')
+2026-05-14 09:10:20.566 WAT [3552] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-14 09:10:20.568 WAT [3552] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-14 09:10:20.568 WAT [3552] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-14 09:10:20.569 WAT [3552] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-14 09:10:20.619 WAT [3553] LOG:  database system was interrupted; last known up at 2026-05-14 00:16:32 WAT
+2026-05-14 09:10:21.757 WAT [3553] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-05-14 09:10:21.774 WAT [3553] LOG:  redo starts at 0/79078510
+2026-05-14 09:10:21.774 WAT [3553] LOG:  invalid record length at 0/790785F8: wanted 24, got 0
+2026-05-14 09:10:21.774 WAT [3553] LOG:  redo done at 0/790785C0 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-05-14 09:10:21.802 WAT [3552] LOG:  database system is ready to accept connections
+2026-05-14 13:22:59.862 WAT [13161] ERROR:  duplicate key value violates unique constraint "users_username_key"
+2026-05-14 13:22:59.862 WAT [13161] DETAIL:  Key (username)=(student) already exists.
+2026-05-14 13:22:59.862 WAT [13161] STATEMENT:  INSERT INTO users (email, hashed_password, is_verified, role, school_id, username)
+	     VALUES ('student11@test.dev', '$2b$12$G3..oYNgJ7cviSROJSHO.u/kCAAib3w204UlvzRqiO6hnUh.ow21y', false, 'user', null, 'student')
+	     RETURNING user_uuid, email, hashed_password, is_verified, role, school_id, username, created_at, updated_at
+2026-05-14 13:25:53.341 WAT [13734] FATAL:  lock file "postmaster.pid" already exists
+2026-05-14 13:25:53.341 WAT [13734] HINT:  Is another postmaster (PID 3552) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-14 14:01:00.538 WAT [21469] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:01:00.538 WAT [21469] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:01:00.538 WAT [21469] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:03:15.591 WAT [21693] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:03:15.591 WAT [21693] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:03:15.591 WAT [21693] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:18:52.769 WAT [22216] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:18:52.769 WAT [22216] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:18:52.769 WAT [22216] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:20:03.580 WAT [22400] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:20:03.580 WAT [22400] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:20:03.580 WAT [22400] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:30:48.624 WAT [22659] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:30:48.624 WAT [22659] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:30:48.624 WAT [22659] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:35:16.160 WAT [23052] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:35:16.160 WAT [23052] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:35:16.160 WAT [23052] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:35:16.176 WAT [23052] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:35:16.176 WAT [23052] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:35:16.176 WAT [23052] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student56@test.dev')
+	    
+2026-05-14 14:35:16.184 WAT [23052] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:35:16.184 WAT [23052] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:35:16.184 WAT [23052] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student66@test.dev')
+	    
+2026-05-14 14:35:16.192 WAT [23052] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:35:16.192 WAT [23052] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:35:16.192 WAT [23052] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:37:25.675 WAT [23479] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:37:25.675 WAT [23479] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:37:25.675 WAT [23479] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:37:25.690 WAT [23479] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:37:25.690 WAT [23479] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:37:25.690 WAT [23479] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student56@test.dev')
+	    
+2026-05-14 14:37:25.700 WAT [23479] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:37:25.700 WAT [23479] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:37:25.700 WAT [23479] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student66@test.dev')
+	    
+2026-05-14 14:37:25.708 WAT [23479] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:37:25.708 WAT [23479] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:37:25.708 WAT [23479] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:41:16.337 WAT [23798] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:41:16.337 WAT [23798] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:41:16.337 WAT [23798] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:41:16.353 WAT [23798] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:41:16.353 WAT [23798] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:41:16.353 WAT [23798] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student56@test.dev')
+	    
+2026-05-14 14:41:16.362 WAT [23798] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:41:16.362 WAT [23798] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:41:16.362 WAT [23798] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student66@test.dev')
+	    
+2026-05-14 14:41:16.370 WAT [23798] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:41:16.370 WAT [23798] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:41:16.370 WAT [23798] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:46:16.322 WAT [23959] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:46:16.322 WAT [23959] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:46:16.322 WAT [23959] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 14:46:16.337 WAT [23959] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:46:16.337 WAT [23959] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:46:16.337 WAT [23959] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student56@test.dev')
+	    
+2026-05-14 14:46:16.346 WAT [23959] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:46:16.346 WAT [23959] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:46:16.346 WAT [23959] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student66@test.dev')
+	    
+2026-05-14 14:46:16.354 WAT [23959] ERROR:  operator does not exist: integer = text at character 218
+2026-05-14 14:46:16.354 WAT [23959] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-14 14:46:16.354 WAT [23959] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.id = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 15:44:24.067 WAT [24707] ERROR:  column u.uuid does not exist at character 213
+2026-05-14 15:44:24.067 WAT [24707] HINT:  Perhaps you meant to reference the column "u.id".
+2026-05-14 15:44:24.067 WAT [24707] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.uuid = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 15:44:24.082 WAT [24707] ERROR:  column u.uuid does not exist at character 213
+2026-05-14 15:44:24.082 WAT [24707] HINT:  Perhaps you meant to reference the column "u.id".
+2026-05-14 15:44:24.082 WAT [24707] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.uuid = b.user_id
+	      WHERE lower(email) = lower('student56@test.dev')
+	    
+2026-05-14 15:44:24.092 WAT [24707] ERROR:  column u.uuid does not exist at character 213
+2026-05-14 15:44:24.092 WAT [24707] HINT:  Perhaps you meant to reference the column "u.id".
+2026-05-14 15:44:24.092 WAT [24707] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.uuid = b.user_id
+	      WHERE lower(email) = lower('student66@test.dev')
+	    
+2026-05-14 15:44:24.100 WAT [24707] ERROR:  column u.uuid does not exist at character 213
+2026-05-14 15:44:24.100 WAT [24707] HINT:  Perhaps you meant to reference the column "u.id".
+2026-05-14 15:44:24.100 WAT [24707] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.uuid = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 15:45:14.207 WAT [24958] ERROR:  column b.name does not exist at character 139
+2026-05-14 15:45:14.207 WAT [24958] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.user_uuid = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 15:45:14.223 WAT [24958] ERROR:  column b.name does not exist at character 139
+2026-05-14 15:45:14.223 WAT [24958] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.user_uuid = b.user_id
+	      WHERE lower(email) = lower('student56@test.dev')
+	    
+2026-05-14 15:45:14.233 WAT [24958] ERROR:  column b.name does not exist at character 139
+2026-05-14 15:45:14.233 WAT [24958] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.user_uuid = b.user_id
+	      WHERE lower(email) = lower('student66@test.dev')
+	    
+2026-05-14 15:45:14.241 WAT [24958] ERROR:  column b.name does not exist at character 139
+2026-05-14 15:45:14.241 WAT [24958] STATEMENT:  
+	      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+	        b.id as badge_id, b.name as badge_name
+	      FROM users as u
+	      LEFT JOIN badges as b ON u.user_uuid = b.user_id
+	      WHERE lower(email) = lower('student@test.dev')
+	    
+2026-05-14 16:47:34.500 WAT [3552] LOG:  received smart shutdown request
+2026-05-14 16:47:34.503 WAT [3552] LOG:  background worker "logical replication launcher" (PID 3561) exited with exit code 1
+2026-05-14 16:47:34.503 WAT [3556] LOG:  shutting down
+2026-05-14 16:47:34.599 WAT [3552] LOG:  database system is shut down
+2026-05-15 13:35:15.607 WAT [3013] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-15 13:35:15.610 WAT [3013] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-15 13:35:15.610 WAT [3013] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-15 13:35:15.610 WAT [3013] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-15 13:35:15.655 WAT [3014] LOG:  database system was shut down at 2026-05-14 16:47:34 WAT
+2026-05-15 13:35:15.664 WAT [3013] LOG:  database system is ready to accept connections
+2026-05-16 10:18:32.690 WAT [8099] FATAL:  lock file "postmaster.pid" already exists
+2026-05-16 10:18:32.690 WAT [8099] HINT:  Is another postmaster (PID 3013) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-16 10:18:39.874 WAT [8272] FATAL:  lock file "postmaster.pid" already exists
+2026-05-16 10:18:39.874 WAT [8272] HINT:  Is another postmaster (PID 3013) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-16 16:21:06.134 WAT [2223] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-16 16:21:06.138 WAT [2223] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-16 16:21:06.138 WAT [2223] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-16 16:21:06.139 WAT [2223] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-16 16:21:06.187 WAT [2224] LOG:  database system was interrupted; last known up at 2026-05-16 15:12:14 WAT
+2026-05-16 16:21:07.500 WAT [2224] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-05-16 16:21:07.584 WAT [2224] LOG:  redo starts at 0/7EF92408
+2026-05-16 16:21:07.863 WAT [2224] LOG:  invalid record length at 0/7F2272F8: wanted 24, got 0
+2026-05-16 16:21:07.889 WAT [2224] LOG:  redo done at 0/7F2272C0 system usage: CPU: user: 0.02 s, system: 0.11 s, elapsed: 0.30 s
+2026-05-16 16:21:07.974 WAT [2223] LOG:  database system is ready to accept connections
+2026-05-16 22:20:37.722 WAT [6095] ERROR:  operator does not exist: text = integer at character 131
+2026-05-16 22:20:37.722 WAT [6095] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-16 22:20:37.722 WAT [6095] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 1
+	    
+2026-05-16 22:20:39.726 WAT [6095] ERROR:  operator does not exist: text = integer at character 131
+2026-05-16 22:20:39.726 WAT [6095] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-16 22:20:39.726 WAT [6095] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 2
+	    
+2026-05-16 22:23:27.417 WAT [6284] ERROR:  operator does not exist: text = integer at character 131
+2026-05-16 22:23:27.417 WAT [6284] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-16 22:23:27.417 WAT [6284] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 1
+	    
+2026-05-16 22:23:29.421 WAT [6284] ERROR:  operator does not exist: text = integer at character 131
+2026-05-16 22:23:29.421 WAT [6284] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-16 22:23:29.421 WAT [6284] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 2
+	    
+2026-05-16 22:26:42.456 WAT [6703] ERROR:  operator does not exist: text = integer at character 131
+2026-05-16 22:26:42.456 WAT [6703] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-16 22:26:42.456 WAT [6703] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 1
+	    
+2026-05-16 22:26:44.459 WAT [6703] ERROR:  operator does not exist: text = integer at character 131
+2026-05-16 22:26:44.459 WAT [6703] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-16 22:26:44.459 WAT [6703] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 2
+	    
+2026-05-16 22:29:58.573 WAT [7274] ERROR:  column "status" of relation "schools" does not exist at character 64
+2026-05-16 22:29:58.573 WAT [7274] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lat, lng, status)
+	    VALUES ('Test School', '123 Test St, Test City', COALESCE(5, 0), (-74.006), 40.7128, 'approved')
+	    RETURNING *
+	  
+2026-05-16 22:29:58.588 WAT [7274] ERROR:  column "status" of relation "schools" does not exist at character 64
+2026-05-16 22:29:58.588 WAT [7274] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lat, lng, status)
+	    VALUES ('Test School', '123 Test St, Test City', COALESCE(5, 0), (-74.006), 40.7128, 'pending')
+	    RETURNING *
+	  
+2026-05-16 22:32:56.788 WAT [7803] ERROR:  column "status" of relation "schools" does not exist at character 64
+2026-05-16 22:32:56.788 WAT [7803] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lat, lng, status)
+	    VALUES ('Test School', '123 Test St, Test City', COALESCE(5, 0), (-74.006), 40.7128, 'approved')
+	    RETURNING *
+	  
+2026-05-16 22:32:56.806 WAT [7803] ERROR:  column "status" of relation "schools" does not exist at character 64
+2026-05-16 22:32:56.806 WAT [7803] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lat, lng, status)
+	    VALUES ('Test School', '123 Test St, Test City', COALESCE(5, 0), (-74.006), 40.7128, 'pending')
+	    RETURNING *
+	  
+2026-05-16 22:35:11.897 WAT [8187] ERROR:  column "tree_count" of relation "schools" already exists
+2026-05-16 22:35:11.897 WAT [8187] STATEMENT:  ALTER TABLE schools ADD COLUMN tree_count integer DEFAULT 0
+2026-05-16 22:39:10.151 WAT [11212] ERROR:  relation "schema_migrations" does not exist at character 15
+2026-05-16 22:39:10.151 WAT [11212] STATEMENT:  SELECT * FROM schema_migrations ORDER BY name DESC
+2026-05-17 04:24:42.986 WAT [17000] ERROR:  operator does not exist: text = integer at character 131
+2026-05-17 04:24:42.986 WAT [17000] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 04:24:42.986 WAT [17000] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 1
+	    
+2026-05-17 04:24:44.993 WAT [17000] ERROR:  operator does not exist: text = integer at character 131
+2026-05-17 04:24:44.993 WAT [17000] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 04:24:44.993 WAT [17000] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 2
+	    
+2026-05-17 04:28:14.511 WAT [17194] ERROR:  operator does not exist: text = integer at character 131
+2026-05-17 04:28:14.511 WAT [17194] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 04:28:14.511 WAT [17194] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 1
+	    
+2026-05-17 04:28:16.521 WAT [17194] ERROR:  operator does not exist: text = integer at character 131
+2026-05-17 04:28:16.521 WAT [17194] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 04:28:16.521 WAT [17194] STATEMENT:  
+	      SELECT user_uuid, email, hashed_password, is_verified, role, created_at, updated_at
+	      FROM users
+	      WHERE user_uuid = 2
+	    
+2026-05-17 04:52:01.879 WAT [18928] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 04:52:01.879 WAT [18928] DETAIL:  Failing row contains (3, schb6bc149d-f0de-4ddc-ba18-e203f6c10957, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 04:52:01.879225+01, 2026-05-17 04:52:01.879225+01, 3, pending).
+2026-05-17 04:52:01.879 WAT [18928] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 04:53:12.424 WAT [19091] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 04:53:12.424 WAT [19091] DETAIL:  Failing row contains (3, schbb330d98-f164-4408-99f1-a127115ba972, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 04:53:12.424675+01, 2026-05-17 04:53:12.424675+01, 3, pending).
+2026-05-17 04:53:12.424 WAT [19091] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 04:55:04.889 WAT [19275] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 04:55:04.889 WAT [19275] DETAIL:  Failing row contains (3, sch8362484f-9bb3-4797-a943-192389ef5c47, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 04:55:04.889339+01, 2026-05-17 04:55:04.889339+01, 3, pending).
+2026-05-17 04:55:04.889 WAT [19275] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 04:57:49.703 WAT [19461] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 04:57:49.703 WAT [19461] DETAIL:  Failing row contains (3, schaa2e9d10-f16d-4c7e-8587-81eff432994d, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 04:57:49.703334+01, 2026-05-17 04:57:49.703334+01, 3, pending).
+2026-05-17 04:57:49.703 WAT [19461] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 05:00:13.185 WAT [19664] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 05:00:13.185 WAT [19664] DETAIL:  Failing row contains (3, sch20b7e183-a729-4dde-9f46-9ca9e56a337a, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 05:00:13.184999+01, 2026-05-17 05:00:13.184999+01, 3, pending).
+2026-05-17 05:00:13.185 WAT [19664] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 05:01:22.992 WAT [19827] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 05:01:22.992 WAT [19827] DETAIL:  Failing row contains (3, schcfa6e3f6-06f3-45e4-a73a-d34b07e99157, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 05:01:22.99209+01, 2026-05-17 05:01:22.99209+01, 3, pending).
+2026-05-17 05:01:22.992 WAT [19827] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 05:02:30.947 WAT [19990] ERROR:  null value in column "lat" of relation "schools" violates not-null constraint
+2026-05-17 05:02:30.947 WAT [19990] DETAIL:  Failing row contains (3, schc048ad6b-31c0-47dc-83f7-27113e03117e, User School No Coords, Somewhere, null, null, null, 0, 2026-05-17 05:02:30.947529+01, 2026-05-17 05:02:30.947529+01, 3, pending).
+2026-05-17 05:02:30.947 WAT [19990] STATEMENT:  
+	    INSERT INTO schools (name, address, tree_count, lng, lat, status)
+	    VALUES ('User School No Coords', 'Somewhere', COALESCE(3, 0), null, null, 'pending')
+	    RETURNING *
+	  
+2026-05-17 05:11:16.617 WAT [21020] ERROR:  syntax error at or near "NOT" at character 83
+2026-05-17 05:11:16.617 WAT [21020] STATEMENT:  /* Replace with your SQL commands */
+	ALTER TABLE schools
+	    ALTER COLUMN lat ADD NOT NULL,
+	    ALTER COLUMN lng ADD NOT NULL;
+	
+2026-05-17 05:12:28.371 WAT [21269] ERROR:  column "lat" of relation "schools" contains null values
+2026-05-17 05:12:28.371 WAT [21269] STATEMENT:  /* Replace with your SQL commands */
+	ALTER TABLE schools
+	    ALTER COLUMN lat SET NOT NULL,
+	    ALTER COLUMN lng SET NOT NULL;
+	
+2026-05-17 20:38:49.239 WAT [48696] ERROR:  syntax error at or near "[" at character 152
+2026-05-17 20:38:49.239 WAT [48696] STATEMENT:  SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    WHERE status = ['pending', 'approved']
+	    ORDER BY name ASC
+2026-05-17 20:41:00.994 WAT [48696] ERROR:  syntax error at or near "[" at character 156
+2026-05-17 20:41:00.994 WAT [48696] STATEMENT:  SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    WHERE status = ANY(['pending', 'approved'])
+	    ORDER BY name ASC
+2026-05-17 20:41:10.941 WAT [48696] ERROR:  syntax error at or near "," at character 165
+2026-05-17 20:41:10.941 WAT [48696] STATEMENT:  SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    WHERE status = ANY('pending', 'approved')
+	    ORDER BY name ASC

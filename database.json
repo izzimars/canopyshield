@@ -1,0 +1,14 @@
+{
+  "dev": {
+    "ENV": "CANPS_DEV_DATABASE_URL"
+  },
+  "test": {
+    "ENV": "CANPS_TEST_DATABASE_URL"
+  },
+  "staging": {
+    "ENV": "CANPS_STAGING_DATABASE_URL"
+  },
+  "production": {
+    "ENV": "CANPS_PRODUCTION_DATABASE_URL"
+  }
+}

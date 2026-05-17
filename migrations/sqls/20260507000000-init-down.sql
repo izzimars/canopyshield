@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS alert_preferences;
+DROP TABLE IF EXISTS push_subscriptions;
+DROP TABLE IF EXISTS quiz_questions;
+DROP TABLE IF EXISTS badges;
+DROP TABLE IF EXISTS trees;
+DROP TABLE IF EXISTS tree_requests;
+DROP TABLE IF EXISTS school_points;
+DROP TABLE IF EXISTS engagement_events;
+DROP TABLE IF EXISTS risk_snapshots;
+DROP TABLE IF EXISTS otp_codes;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS schools;
+DROP EXTENSION IF EXISTS pgcrypto;

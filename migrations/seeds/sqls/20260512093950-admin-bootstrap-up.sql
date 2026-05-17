@@ -1,0 +1,2 @@
+INSERT INTO "users" ("email", "hashed_password", "is_verified", "role", "username") VALUES
+('superadmin@yopmail.com', '$2b$12$CN6V9HbS9No0YVVAKs18e.0ERd4cY7wSpKyCHhf9VBOBVvsChGfRm', true, 'admin', 'superadmin_cool');
