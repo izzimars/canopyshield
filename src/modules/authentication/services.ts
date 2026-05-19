@@ -6,6 +6,8 @@ import MailService from '../../services//mailing/mailing.service';
 import { logger } from '../../config/logger';
 import { BCRYPT_COST, AUTH_ERROR_CODES } from '../../shared/utils/const';
 import hashingService from '../../services/hashing/hashing.service';
+import { TOKEN_EXPIRY } from '../../shared/utils/const';
+import { UserEntity } from './entities';
 
 /**
  * Main authentication service orchestrating the auth flow
@@ -13,10 +15,10 @@ import hashingService from '../../services/hashing/hashing.service';
 
 export interface AuthServices {
   register(email: string, password: string, schoolId?: string, username?: string): Promise<{ userId: string; otp: string } | BadException | InternalServerErrorException>;
-  login(email: string, password: string): Promise<{ token: string; refreshToken: string; user: any, badgeName: string | null } | UnAuthorizedException>;
+  login(email: string, password: string): Promise<{ token: string; refreshToken: string; user: UserEntity, badgeName: string | null } | UnAuthorizedException>;
   forgotPassword(email: string): Promise<{ otp: string } | NotFoundException>;
-  resetPassword(user: any, newPassword: string): Promise<{ token: string; refreshToken: string }>;
-  verifyOtp(email: string, code: string, type: string): Promise<{ user: any; token: string; refreshToken: string } | UnAuthorizedException>;
+  resetPassword(user: UserEntity, newPassword: string): Promise<{ token: string; refreshToken: string }>;
+  verifyOtp(email: string, code: string, type: string): Promise<{ user: UserEntity; token: string; refreshToken: string } | UnAuthorizedException>;
   resendOtp(email: string, type: string): Promise<{ message: string; otp: string } | NotFoundException>;
   logout(userId: string, refreshTokenJti: string, accessTokenJti: string): Promise<void>;
 }
@@ -28,7 +30,7 @@ export class AuthServiceImpl implements AuthServices {
   async register(email: string, password: string, schoolId?: string, username?: string): Promise<{ userId: string; otp: string } | BadException> {
     logger.info('authentication::services::register');
     // Check if email already exists
-    const existingUser = await authRepository.emailExists(email);
+    const existingUser = await authRepository.emailOrUsernameExists(email, username);
 
     if (existingUser) {
       return new BadException('User already exists');
@@ -46,7 +48,7 @@ export class AuthServiceImpl implements AuthServices {
 
     // Generate and send OTP
     const otp = await otpService.saveOtp(userId, 'verification');
-    await MailService('Welcome to CanopyShield', 'userValidationOTP', { email, otp });
+    await MailService('Welcome to CanopyShield', 'userValidationOTP', { email, otp, duration: TOKEN_EXPIRY.OTP_SECONDS / 60 });
 
     logger.info(`User registered: ${email}`);
 
@@ -114,7 +116,7 @@ export class AuthServiceImpl implements AuthServices {
 
     // Generate OTP and send email
     const otp = await otpService.saveOtp(user.user_uuid, 'forgot-password');
-    await MailService('Forgot Password', 'forgotPassword', { email, otp });
+    await MailService('Forgot Password', 'forgotPassword', { email, otp, duration: TOKEN_EXPIRY.OTP_SECONDS / 60 });
 
     logger.info(`Password reset OTP sent to: ${email}`);
     return { otp };
@@ -146,7 +148,7 @@ export class AuthServiceImpl implements AuthServices {
   /**
    * Verify OTP and mark user as verified
    */
-  async verifyOtp(email: string, code: string, type: string): Promise<{ user: any; token: string; refreshToken: string } | UnAuthorizedException> {
+  async verifyOtp(email: string, code: string, type: string): Promise<{ user: UserEntity; token: string; refreshToken: string } | UnAuthorizedException> {
     logger.info('authentication::services::verifyOtp');
     const user = await authRepository.findByEmail(email);
     if (!user) {

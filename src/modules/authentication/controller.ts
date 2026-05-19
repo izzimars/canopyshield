@@ -162,7 +162,7 @@ export class AuthController {
    */
   async verifyOtp(req: any, res: Response) {
       logger.info('authentication::controller::verifyOtp');
-      const payload = new dtos.VerifyOtpDto(req.query);
+      const payload = new dtos.VerifyOtpDto(req.body);
 
       const resp = await this.authServices.verifyOtp(payload.email, payload.code, payload.type);
       if (resp instanceof UnAuthorizedException) {

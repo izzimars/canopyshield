@@ -25,6 +25,13 @@ const envSpecificSchema = z.object({
   CRYPTO_OTP_LENGTH: z.coerce.number().int().positive().default(6),
   CRYPTO_HASH_ALGO: z.string().default('sha1'),
   SALT_ROUND: z.coerce.number().int().positive().default(12),
+  EMAIL_API_KEY: z.string().min(1),
+  EMAIL_FROM: z.string().min(1),
+  EMAIL_FROM_NAME: z.string().min(1),
+  MAIL_HOST: z.string().min(1),
+  MAIL_PORT: z.coerce.number().int().positive().optional(),
+  USER_MAIL: z.string().min(1),
+
 });
 
 type EnvSpecific = z.infer<typeof envSpecificSchema>;
@@ -68,6 +75,12 @@ function selectEnvironmentVariables(rawEnv: Record<string, string | undefined>):
     CRYPTO_OTP_LENGTH: rawEnv[`${prefix}_CRYPTO_OTP_LENGTH`],
     CRYPTO_HASH_ALGO: rawEnv[`${prefix}_CRYPTO_HASH_ALGO`],
     SALT_ROUND: rawEnv[`${prefix}_SALT_ROUND`],
+    EMAIL_API_KEY: rawEnv[`${prefix}_EMAIL_API_KEY`],
+    EMAIL_FROM: rawEnv[`${prefix}_EMAIL_FROM`],
+    EMAIL_FROM_NAME: rawEnv[`${prefix}_EMAIL_FROM_NAME`],
+    MAIL_HOST: rawEnv[`${prefix}_MAIL_HOST`],
+    MAIL_PORT: rawEnv[`${prefix}_MAIL_PORT`],
+    USER_MAIL: rawEnv[`${prefix}_USER_MAIL`] || rawEnv[`${prefix}_EMAIL_FROM`],
   };
 
   // Parse the raw object with the schema – this coerces strings to numbers
@@ -94,6 +107,18 @@ export const VAPID_SUBJECT = parsedEnv.VAPID_SUBJECT;
 export const VAPID_PUBLIC_KEY = parsedEnv.VAPID_PUBLIC_KEY;
 export const VAPID_PRIVATE_KEY = parsedEnv.VAPID_PRIVATE_KEY;
 export const CANPS_DEV_OPENWEATHERMAP_API_KEY = parsedEnv.OPENWEATHERMAP_API_KEY;
+export const LOG_LEVEL = parsedEnv.LOG_LEVEL;
+export const CRYPTO_SECRET = parsedEnv.CRYPTO_SECRET;
+export const CRYPTO_TIME_STEP = parsedEnv.CRYPTO_TIME_STEP;
+export const CRYPTO_OTP_LENGTH = parsedEnv.CRYPTO_OTP_LENGTH;
+export const CRYPTO_HASH_ALGO = parsedEnv.CRYPTO_HASH_ALGO;
+export const SALT_ROUND = parsedEnv.SALT_ROUND;
+export const EMAIL_API_KEY = parsedEnv.EMAIL_API_KEY;
+export const EMAIL_FROM = parsedEnv.EMAIL_FROM;
+export const EMAIL_FROM_NAME = parsedEnv.EMAIL_FROM_NAME;
+export const MAIL_HOST = parsedEnv.MAIL_HOST;
+export const MAIL_PORT = parsedEnv.MAIL_PORT;
+export const USER_MAIL = parsedEnv.USER_MAIL;
 export const JwtSignOptions: JwtSignature = {
   issuer: 'CanopyShield',
   subject: 'Authentication Token',

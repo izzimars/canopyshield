@@ -17,6 +17,18 @@ app.use(cookieParser()); // Parse cookies
 app.use(express.static('public'));
 app.use(ROUTE_BASE.V1_PATH, Router);
 
+app.use((req, res, _next) => {
+  res.status(404).json({
+    status: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.method} ${req.originalUrl} not found`,
+      details: null,
+    },
+  });
+});
+
+
 app.use(GlobalErrorCatcherMiddleware);
 
 export default app;

@@ -2,6 +2,16 @@ export default {
   emailExists:
     'SELECT 1 FROM users WHERE lower(email) = lower($1)',
 
+  emailOrUsernameExists: `
+    SELECT 1 FROM users WHERE lower(email) = lower($1) OR lower(username) = lower($2)
+  `,
+  findByEmail: `
+    SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
+      b.id as badge_id, b.type as badge_name
+    FROM users as u
+    LEFT JOIN badges as b ON u.user_uuid = b.user_id
+    WHERE lower(email) = lower($1)
+    `,
   createUser:
     `INSERT INTO users (email, hashed_password, is_verified, role, school_id, username)
      VALUES ($1, $2, false, 'user', $3, $4)

@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import canopyTemplate from '../../shared/templates/canopy_template';
 import { logger } from '../../config/logger';
+import { env } from '../../config/env';
 
 /**
  * Send email using Nodemailer with SMTP
@@ -17,18 +18,21 @@ const MailService = async (
     logger.debug('Skipping mail send in test environment');
     return;
   }
+
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: Number(process.env.EMAIL_PORT) || 587,
-    secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+    host: env.MAIL_HOST,
+    port: 587,
+    secure: Number(env.MAIL_PORT) === 465,
+    requireTLS: Number(env.MAIL_PORT) !== 465,
+    connectionTimeout: 10000,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: env.USER_MAIL,
+      pass: env.EMAIL_API_KEY,
     },
   });
-
+  
   const mailOptions = {
-    from: process.env.MAIL_FROM,
+    from: env.EMAIL_FROM,
     cc,
     bcc,
     to: data.email,

@@ -36,7 +36,7 @@ describe('Insert test school risk data', () => {
       });
       await schoolRepository.updateRiskScore(schoolTwoUuid, 60);
     }
-    console.log(`Inserted test risk data for schools ${schoolOneUuid} and ${schoolTwoUuid}`);
+
   });
 
   // Dummy test – Mocha needs at least one `it` to run the `before` hook

@@ -4,11 +4,6 @@ import schoolRequestQueries from './query';
 import schoolQueries from '../schools/query';
 
 export class SchoolRequestRepository {
-  async createRequest(schoolName: string, address: string | null, requesterEmail: string, lat?: number | null, lng?: number | null) {
-    logger.info('schoolRequests::repository::createRequest');
-    return await db.one(schoolRequestQueries.createRequest, [schoolName, address, requesterEmail, lat, lng]);
-  }
-
   async findPending() {
     logger.info('schoolRequests::repository::findPending');
     return await db.manyOrNone(schoolRequestQueries.findPending);
@@ -19,9 +14,9 @@ export class SchoolRequestRepository {
     return await db.oneOrNone(schoolRequestQueries.findById, [id]);
   }
 
-  async updateStatus(id: string, status: string, adminNotes?: string) {
+  async updateStatus(id: string, status: string) {
     logger.info('schoolRequests::repository::updateStatus');
-    return await db.oneOrNone(schoolRequestQueries.updateStatus, [status, adminNotes || null, id]);
+    return await db.oneOrNone(schoolQueries.updateStatus, [id, status]);
   }
 }
 

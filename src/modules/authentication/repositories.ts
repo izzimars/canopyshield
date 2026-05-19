@@ -21,19 +21,15 @@ export class AuthRepository {
 
   async findByEmail(email: string): Promise<UserEntity | null> {
     logger.info('authentication::repository::findByEmail');
-    const query = `
-      SELECT u.id, u.user_uuid, u.email, u.hashed_password, u.is_verified, u.role, u.created_at, u.updated_at,
-        b.id as badge_id, b.type as badge_name
-      FROM users as u
-      LEFT JOIN badges as b ON u.user_uuid = b.user_id
-      WHERE lower(email) = lower($1)
-    `;
-    try {
+    const query = authQueries.findByEmail;
       return await db.oneOrNone(query, [email]);
-    } catch (error) {
-      logger.error('Failed to find user by email:', error);
-      throw error;
-    }
+  }
+
+  async emailOrUsernameExists(email: string, username?: string): Promise<boolean> {
+    logger.info('authentication::repository::emailOrUsernameExists');
+    const query = authQueries.emailOrUsernameExists;
+    const user = await db.oneOrNone(query, [email, username]);
+    return Boolean(user);
   }
 
   async findByUuid(userUuid: string): Promise<UserEntity | null> {

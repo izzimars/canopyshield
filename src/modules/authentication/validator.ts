@@ -31,7 +31,7 @@ export const refreshTokenSchema = z.object({
 });
 
 export const verifyOtpSchema = z.object({
-  query: z.object({
+  body: z.object({
     email: z.string().email('Invalid email format').toLowerCase(),
     code: z.string().length(6, 'OTP must be 6 digits'),
     type: z.enum(['verification', 'forgot-password', 'reset-password']),

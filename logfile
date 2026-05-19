@@ -1087,3 +1087,32 @@
 	    FROM schools
 	    WHERE status = ANY('pending', 'approved')
 	    ORDER BY name ASC
+2026-05-18 14:08:59.657 WAT [65419] ERROR:  column "status" does not exist at character 148
+2026-05-18 14:08:59.657 WAT [65419] STATEMENT:  
+	    SELECT school_uuid, name, address, contact_email, lat, lng, current_risk_score, tree_count, created_at, updated_at
+	    FROM schools
+	    WHERE status = ANY(array['approved'])
+	    ORDER BY name ASC
+	  
+2026-05-18 14:14:30.673 WAT [66373] FATAL:  lock file "postmaster.pid" already exists
+2026-05-18 14:14:30.673 WAT [66373] HINT:  Is another postmaster (PID 2223) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-18 14:14:39.479 WAT [66542] FATAL:  lock file "postmaster.pid" already exists
+2026-05-18 14:14:39.479 WAT [66542] HINT:  Is another postmaster (PID 2223) running in data directory "/usr/local/var/postgresql@14"?
+2026-05-18 14:15:14.158 WAT [66677] ERROR:  duplicate key value violates unique constraint "users_username_key"
+2026-05-18 14:15:14.158 WAT [66677] DETAIL:  Key (username)=(Aguda112**) already exists.
+2026-05-18 14:15:14.158 WAT [66677] STATEMENT:  INSERT INTO users (email, hashed_password, is_verified, role, school_id, username)
+	     VALUES ('agudahighschool1@yopmail.com', '$2b$12$/CBzJ9PIDZWQPmbdHeiTJ.qBGsQmvqTszPMwuGwkHglpkyOeG3iSC', false, 'user', null, 'Aguda112**')
+	     RETURNING user_uuid, email, hashed_password, is_verified, role, school_id, username, created_at, updated_at
+2026-05-18 14:21:11.838 WAT [67027] ERROR:  duplicate key value violates unique constraint "users_username_key"
+2026-05-18 14:21:11.838 WAT [67027] DETAIL:  Key (username)=(Aguda112**) already exists.
+2026-05-18 14:21:11.838 WAT [67027] STATEMENT:  INSERT INTO users (email, hashed_password, is_verified, role, school_id, username)
+	     VALUES ('agudahighschool1@yopmail.com', '$2b$12$hv7Fyue6Zn/P2FiT3ZCxPeHH5/Jmmi0sfK.V8y8bNBiGqB3ZH0eT2', false, 'user', null, 'Aguda112**')
+	     RETURNING user_uuid, email, hashed_password, is_verified, role, school_id, username, created_at, updated_at
+2026-05-19 15:06:05.386 WAT [84110] ERROR:  relation "school_requests" does not exist at character 20
+2026-05-19 15:06:05.386 WAT [84110] STATEMENT:  
+	    SELECT * FROM school_requests WHERE request_uuid = 'schd5306fd3-058d-4150-8991-d42ba1812e3c'
+	  
+2026-05-19 15:07:14.937 WAT [84247] ERROR:  relation "school_requests" does not exist at character 13
+2026-05-19 15:07:14.937 WAT [84247] STATEMENT:  
+	    UPDATE school_requests SET status = 'approved', admin_notes = null, updated_at = now() WHERE request_uuid = 'schd5306fd3-058d-4150-8991-d42ba1812e3c' RETURNING *
+	  

@@ -79,9 +79,9 @@ router.post(
 );
 
 /**
- * GET /api/v1/auth/verify-otp
+ * POST /api/v1/auth/verify-otp
  */
-router.get(
+router.post(
   AUTH_ROUTES.VERIFY_OTP,
   // rateLimit(RATE_LIMITS.VERIFY_OTP.attempts, RATE_LIMITS.VERIFY_OTP.windowMs, ipRateLimitKey),
   validate(verifyOtpSchema),
