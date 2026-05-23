@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { OPENWEATHERMAP_API_KEY } from '../../config/env';
+import { OPENWEATHERMAP_API_KEY, OPENAQ_API_KEY } from '../../config/env';
 import { redis } from '../../config/redis';
 import { logger } from '../../config/logger';
 import {
@@ -8,10 +8,11 @@ import {
   SchoolEntity,
   WeatherCurrent,
   WeatherForecastPoint,
+  RiskSnapshotEntity,
 } from './entities';
 import { riskSnapshotRepository, schoolRepository } from './repositories';
 import { pushNotificationService } from '../push/service';
-import { BadException, NotFoundException, UnAuthorizedException, InternalServerErrorException, ProviderException } from '../../shared/errors';
+import { NotFoundException, InternalServerErrorException } from '../../shared/errors';
 
 export interface OpenWeatherMapService {
   fetchCurrentWeather(lat: number, lon: number): Promise<WeatherCurrent>;
@@ -25,8 +26,9 @@ export interface RiskScoringService {
 
 export interface SchoolRiskService {
   getAllSchools(statusfilter: Array<string>): Promise<SchoolEntity[]>;
+  getRiskById(riskId: string): Promise<RiskSnapshotEntity | NotFoundException>;
   createNewSchool(name: string, location: string, status: string, treeCount?: number, lng?: number, lat?: number): Promise<SchoolEntity>;
-  getSchoolRisk(uuid: string): Promise<{ latest: any | null; lastFive: any[] } | NotFoundException>;
+  getSchoolRisk(uuid: string): Promise<{ risk: [] | any } | NotFoundException>;
   getRiskHistory(uuid: string, days?: number): Promise<any[] | NotFoundException>;
   getPrediction(uuid: string): Promise<{ school_id: string; horizonHours: number; points: any[] } | NotFoundException>;
   getRiskLeaderboard(statusFilter: Array<string>): Promise<any[]>;
@@ -38,7 +40,10 @@ export interface SchoolRiskService {
 
 const OWM_CURRENT_URL = 'https://api.openweathermap.org/data/2.5/weather';
 const OWM_FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
-const OWM_AIR_URL = 'https://api.openweathermap.org/data/2.5/air_pollution';
+
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 class OpenWeatherMapServiceImpl implements OpenWeatherMapService {
   async fetchCurrentWeather(lat: number, lon: number): Promise<WeatherCurrent> {
@@ -85,90 +90,199 @@ class OpenWeatherMapServiceImpl implements OpenWeatherMapService {
     }));
   }
 
-  async fetchAirPollution(lat: number, lon: number): Promise<AirPollutionData | null> {
-    try {
-      logger.info('schools::services::fetchAirPollution');
-      const response = await axios.get(OWM_AIR_URL, {
+  // async fetchAirPollution(lat: number, lon: number): Promise<AirPollutionData | null> {
+  //   try {
+  //     logger.info('schools::services::fetchAirPollution');
+  //     const response = await axios.get(OWM_AIR_URL, {
+  //       params: {
+  //         lat,
+  //         lon,
+  //         appid: OPENWEATHERMAP_API_KEY,
+  //       },
+  //       timeout: 15000,
+  //     });
+
+  //     const first = Array.isArray(response.data?.list) ? response.data.list[0] : null;
+  //     if (!first) {
+  //       return null;
+  //     }
+
+  //     return {
+  //       pm2_5: first?.components?.pm2_5,
+  //       pm10: first?.components?.pm10,
+  //     };
+  //   } catch (error) {
+  //     logger.warn('OWM air pollution unavailable; falling back to moderate AQI', { error: (error as Error).message });
+  //     return null;
+  //   }
+  // }
+
+// weatherService.ts
+
+  async fetchAirPollution(lat: number, lng: number): Promise<AirPollutionData | null> {
+  try {
+    logger.info('schools::services::fetchAirPollution - trying OpenAQ');
+
+    // 1. Find nearest stations
+    const locationResponse = await axios.get(
+      'https://api.openaq.org/v3/locations',
+      {
         params: {
-          lat,
-          lon,
-          appid: OPENWEATHERMAP_API_KEY,
+          coordinates: `${lat},${lng}`,
+          radius: 25000,
+          limit: 5,
         },
-        timeout: 15000,
-      });
-
-      const first = Array.isArray(response.data?.list) ? response.data.list[0] : null;
-      if (!first) {
-        return null;
+        headers: { 'X-API-Key': OPENAQ_API_KEY! },
       }
+    );
 
+    const locationData = locationResponse.data;
+
+    if (!locationData.results || locationData.results.length === 0) {
+      // No station nearby — fallback
+      return this.fetchAirPollutionFallback(lat, lng);
+    }
+
+    // 2. Get latest measurements from the closest station
+    const locationId = locationData.results[0].id;
+    const measurementsResponse = await axios.get(
+      `https://api.openaq.org/v3/locations/${locationId}/latest`,
+      {
+        headers: { 'X-API-Key': OPENAQ_API_KEY! },
+      }
+    );
+
+    const measurementsData = measurementsResponse.data;
+    const results = measurementsData.results ?? [];
+
+    const pm2_5 = results.find((r: any) => r.parameter === 'pm25')?.value ?? null;
+    const pm10 = results.find((r: any) => r.parameter === 'pm10')?.value ?? null;
+
+    // 3. If station exists but has no PM data, fallback
+    if (pm2_5 === null && pm10 === null) {
+      return this.fetchAirPollutionFallback(lat, lng);
+    }
+
+    return { pm2_5, pm10 };
+  } catch (error: any) {
+    logger.error('OpenAQ fetch failed', {
+      message: error.message,
+      status: error.response?.status,
+      response: error.response?.data || error.message,
+    });
+    return this.fetchAirPollutionFallback(lat, lng);
+  }
+}
+
+// Fallback: OpenWeatherMap with Lagos correction factor
+  private async fetchAirPollutionFallback(lat: number, lng: number): Promise<AirPollutionData | null> {
+    try {
+      logger.info('schools::services::fetchAirPollution - trying OpenWeatherMap');
+      const response = await axios.get(
+        'https://api.openweathermap.org/data/2.5/air_pollution',
+        {
+          params: {
+            lat: lat,
+            lon: lng,
+            appid: OPENWEATHERMAP_API_KEY,
+          },
+        }
+      );
+
+      const components = response.data.list?.[0]?.components;
+
+      if (!components) return null;
+
+    // Apply Lagos urban correction factor
       return {
-        pm2_5: first?.components?.pm2_5,
-        pm10: first?.components?.pm10,
+        pm2_5: components.pm2_5 * 45,
+        pm10: components.pm10 * 20,
       };
     } catch (error) {
-      logger.warn('OWM air pollution unavailable; falling back to moderate AQI', { error: (error as Error).message });
+      logger.error('OpenWeatherMap air pollution fetch failed during fallback', { error: (error as Error).message });
       return null;
     }
   }
 }
 
-class RiskScoringServiceImpl implements RiskScoringService {
+export class RiskScoringServiceImpl implements RiskScoringService {
   private clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
   }
 
   private linearNormalize(value: number, min: number, max: number): number {
-    if (max === min) {
-      return 0;
-    }
+    if (max === min) return 0;
     const ratio = (value - min) / (max - min);
     return this.clamp(ratio * 100, 0, 100);
   }
 
-  private pm25Score(pm25: number): number {
-    if (pm25 <= 5) return this.linearNormalize(pm25, 0, 5) * 0.2;
-    if (pm25 <= 15) return 20 + this.linearNormalize(pm25, 5, 15) * 0.2;
-    if (pm25 <= 25) return 40 + this.linearNormalize(pm25, 15, 25) * 0.2;
-    if (pm25 <= 50) return 60 + this.linearNormalize(pm25, 25, 50) * 0.2;
-    return this.clamp(80 + this.linearNormalize(pm25, 50, 100) * 0.2, 0, 100);
+  /**
+   * PM2.5 → AQI (0–500) using EPA breakpoints
+   */
+  private pm25Aqi(pm25: number): number {
+    if (pm25 <= 12.0) return this.linearNormalize(pm25, 0, 12.0) * 0.5;
+    if (pm25 <= 35.4) return 50 + (pm25 - 12.0) / (35.4 - 12.0) * 50;
+    if (pm25 <= 55.4) return 100 + (pm25 - 35.4) / (55.4 - 35.4) * 50;
+    if (pm25 <= 150.4) return 150 + (pm25 - 55.4) / (150.4 - 55.4) * 50;
+    if (pm25 <= 250.4) return 200 + (pm25 - 150.4) / (250.4 - 150.4) * 100;
+    if (pm25 <= 350.4) return 300 + (pm25 - 250.4) / (350.4 - 250.4) * 100;
+    if (pm25 <= 500.4) return 400 + (pm25 - 350.4) / (500.4 - 350.4) * 100;
+    return 500;
   }
 
-  private pm10Score(pm10: number): number {
-    if (pm10 <= 15) return this.linearNormalize(pm10, 0, 15) * 0.2;
-    if (pm10 <= 45) return 20 + this.linearNormalize(pm10, 15, 45) * 0.2;
-    if (pm10 <= 60) return 40 + this.linearNormalize(pm10, 45, 60) * 0.2;
-    if (pm10 <= 100) return 60 + this.linearNormalize(pm10, 60, 100) * 0.2;
-    return this.clamp(80 + this.linearNormalize(pm10, 100, 200) * 0.2, 0, 100);
+  /**
+   * PM10 → AQI (0–500) using EPA breakpoints
+   */
+  private pm10Aqi(pm10: number): number {
+    if (pm10 <= 54) return (pm10 / 54) * 50;
+    if (pm10 <= 154) return 50 + (pm10 - 54) / (154 - 54) * 50;
+    if (pm10 <= 254) return 100 + (pm10 - 154) / (254 - 154) * 50;
+    if (pm10 <= 354) return 150 + (pm10 - 254) / (354 - 254) * 50;
+    if (pm10 <= 424) return 200 + (pm10 - 354) / (424 - 354) * 100;
+    if (pm10 <= 504) return 300 + (pm10 - 424) / (504 - 424) * 100;
+    if (pm10 <= 604) return 400 + (pm10 - 504) / (604 - 504) * 100;
+    return 500;
   }
 
   computeRisk(current: WeatherCurrent, air: AirPollutionData | null): ComputedRisk {
-    const feelsLikeScore = this.linearNormalize(current.feelsLike, 15, 35);
-
+    // 1. Heat‑related score (0–100)
+    const feelsLikeScore = this.linearNormalize(current.feelsLike, 22, 48);
     const uvRaw = typeof current.uvIndex === 'number'
       ? current.uvIndex
       : ((100 - this.clamp(current.cloudCover, 0, 100)) / 100) * 11;
-
     const uvNormalized = this.linearNormalize(uvRaw, 0, 11);
-    const humidityNormalized = this.clamp(100 - current.humidity, 0, 100);
-
-    const heatScore = this.clamp((feelsLikeScore * 0.5) + (uvNormalized * 0.3) + (humidityNormalized * 0.2), 0, 100);
-
-    let aqiScore = 50;
-    if (air && typeof air.pm2_5 === 'number' && typeof air.pm10 === 'number') {
-      aqiScore = this.clamp(Math.max(this.pm25Score(air.pm2_5), this.pm10Score(air.pm10)), 0, 100);
-    }
-
-    const combinedScore = this.clamp(
-      Math.max(heatScore, aqiScore) * 0.6 + Math.min(heatScore, aqiScore) * 0.4,
-      0,
-      100
+    const humidityNormalized = this.linearNormalize(current.humidity, 30, 95);
+    const heatScore = this.clamp(
+      (feelsLikeScore * 0.5) + (uvNormalized * 0.3) + (humidityNormalized * 0.2),
+      0, 100
     );
 
+    // 2. Air quality score on real AQI scale (0–500)
+    let aqiScore = 50; // default moderate
+    if (air && typeof air.pm2_5 === 'number' && typeof air.pm10 === 'number') {
+      const pm25Aqi = this.pm25Aqi(air.pm2_5);
+      const pm10Aqi = this.pm10Aqi(air.pm10);
+      aqiScore = Math.max(pm25Aqi, pm10Aqi);
+    }
+
+    // 3. Scale heatScore to match AQI range (0–500)
+    const heatScoreScaled = heatScore * 5; // 0–100 → 0–500
+
+    // 4. Combine on the 0–500 scale (no rounding)
+    const combinedScore = this.clamp(
+      Math.max(heatScoreScaled, aqiScore) * 0.6 + Math.min(heatScoreScaled, aqiScore) * 0.4,
+      0, 500
+    );
+
+    // Logging (optional)
+    logger.info(`Risk computation: heatScore (0-100) = ${heatScore.toFixed(2)} → scaled = ${heatScoreScaled.toFixed(2)}`);
+    logger.info(`AQI score (0-500) = ${aqiScore.toFixed(2)}`);
+    logger.info(`Combined risk (0-500) = ${combinedScore.toFixed(2)}`);
+
     return {
-      heatScore: Math.round(heatScore),
-      aqiScore: Math.round(aqiScore),
-      combinedScore: Math.round(combinedScore),
+      heatScore,           // raw float, 0–100
+      aqiScore,           // raw float, 0–500
+      combinedScore,      // raw float, 0–500
       metadata: {
         feelsLike: current.feelsLike,
         uvRaw,
@@ -207,18 +321,20 @@ class SchoolRiskServiceImpl implements SchoolRiskService {
     return school;
   }
 
-  async getSchoolRisk(uuid: string): Promise<{ latest: any | null; lastFive: any[] } | NotFoundException> {
+  async getSchoolRisk(uuid: string): Promise<{ risk: [] | any } | NotFoundException> {
     logger.info('schools::services::getSchoolRisk');
     const school = await schoolRepository.findByUuId(uuid);
     if (school instanceof NotFoundException) {
       return new NotFoundException('School not found');
     }
 
-    const snapshots = await riskSnapshotRepository.findLatest(uuid, 6);
-    return {
-      latest: snapshots.length > 0 ? snapshots[0] : null,
-      lastFive: snapshots.slice(1),
-    };
+    const riskHistory = await riskSnapshotRepository.findRiskBySchoolId(uuid);
+    return { risk: riskHistory instanceof NotFoundException ? [] : riskHistory }; 
+  }
+
+  async getRiskById(riskId: string): Promise<RiskSnapshotEntity | NotFoundException> {
+    logger.info('schools::services::getRiskById');
+    return riskSnapshotRepository.findByRiskId(riskId);
   }
 
   async getRiskHistory(uuid: string, days = 7): Promise<any[] | NotFoundException> {
@@ -250,7 +366,7 @@ class SchoolRiskServiceImpl implements SchoolRiskService {
 
       return {
         timestamp: point.timestamp,
-        predictedRisk: computed.combinedScore,
+        predictedRisk: roundToTwoDecimals(computed.combinedScore),
       };
     });
 
@@ -307,7 +423,7 @@ class SchoolRiskServiceImpl implements SchoolRiskService {
     const weatherCacheKey = `weather:${school.school_uuid}`;
 
     try {
-      const weatherCache = await redis.get(weatherCacheKey);
+      const weatherCache = null //await redis.get(weatherCacheKey);
 
       let current: WeatherCurrent;
       let forecast: WeatherForecastPoint[];
@@ -336,14 +452,16 @@ class SchoolRiskServiceImpl implements SchoolRiskService {
         forecast = freshForecast;
         air = freshAir;
 
+        console.log('Fetched weather and air data for school:');
         await redis.set(weatherCacheKey, JSON.stringify({ current, forecast, air }), 'EX', 1500);
       }
 
       const computed = this.scoringService.computeRisk(current, air);
+      const roundedScore = roundToTwoDecimals(computed.combinedScore);
 
       await riskSnapshotRepository.create({
         schoolId: school.school_uuid,
-        score: computed.combinedScore,
+        score: roundedScore,
         heatScore: computed.heatScore,
         aqiScore: computed.aqiScore,
         rawData: {
@@ -358,9 +476,9 @@ class SchoolRiskServiceImpl implements SchoolRiskService {
         rawAqi: computed.aqiScore,
       });
 
-      await schoolRepository.updateRiskScore(school.school_uuid, computed.combinedScore);
+      await schoolRepository.updateRiskScore(school.school_uuid, roundedScore);
 
-      return computed.combinedScore;
+      return roundedScore;
     } catch (error) {
       logger.error('Failed to update school risk; keeping previous score', {
         schoolId: school.school_uuid,

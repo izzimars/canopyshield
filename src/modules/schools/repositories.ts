@@ -2,7 +2,11 @@ import { db } from '../../config/database';
 import { NotFoundException } from '../../shared/errors';
 import { logger } from '../../config/logger';
 import schoolQueries from './query';
-import { RiskSnapshotEntity, SchoolEntity } from './entities';
+import { RiskSnapshotEntity, SchoolEntity, RiskHistoryEntity } from './entities';
+
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 export interface CreateRiskSnapshotInput {
   schoolId: string;
@@ -51,7 +55,7 @@ export class SchoolRepository {
 
   async updateRiskScore(id: string, score: number): Promise<void> {
     logger.info('schools::repository::updateRiskScore');
-    await db.none(schoolQueries.updateRiskScore, [id, Math.round(score)]);
+    await db.none(schoolQueries.updateRiskScore, [id, roundToTwoDecimals(score)]);
   }
 
   async updateTreeCount(id: string, count: number): Promise<void> {
@@ -83,14 +87,14 @@ export class RiskSnapshotRepository {
       logger.info('schools::repository::createRiskSnapshot');
       return await db.one(schoolQueries.createRiskSnapshot, [
         data.schoolId,
-        Math.round(data.score),
-        Math.round(data.heatScore),
-        Math.round(data.aqiScore),
+        roundToTwoDecimals(data.score),
+        roundToTwoDecimals(data.heatScore),
+        roundToTwoDecimals(data.aqiScore),
         data.rawData,
         data.rawTemp,
         data.rawHumidity,
         data.rawUv,
-        Math.round(data.rawAqi),
+        roundToTwoDecimals(data.rawAqi),
       ]);
     } catch (error) {
       logger.error('Failed to create risk snapshot', error);
@@ -101,6 +105,21 @@ export class RiskSnapshotRepository {
   async findLatest(uuid: string, limit = 1): Promise<RiskSnapshotEntity[]> {
     logger.info('schools::repository::findLatest');
     return db.manyOrNone(schoolQueries.findLatestRisk, [uuid, limit]);
+  }
+
+  async findRiskBySchoolId(schoolId: string): Promise<RiskHistoryEntity[] | NotFoundException> {
+    logger.info('schools::repository::findRiskBySchoolId');
+    const riskHistory = await db.manyOrNone(schoolQueries.findRiskBySchoolId, [schoolId]);
+    return riskHistory ?? [];
+  }
+
+  async findByRiskId(riskId: string): Promise<RiskSnapshotEntity | NotFoundException> {
+    logger.info('schools::repository::findByIdRiskSnapshot');
+    const snapshot = await db.oneOrNone(schoolQueries.findByIdRiskSnapshot, [riskId]);
+    if (!snapshot) {
+      return new NotFoundException('Risk snapshot not found');
+    }
+    return snapshot;
   }
 
   async findHistory(uuid: string, days = 7): Promise<RiskSnapshotEntity[]> {

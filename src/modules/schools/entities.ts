@@ -20,7 +20,21 @@ export class RiskSnapshotEntity extends BaseEntity<RiskSnapshotEntity> {
   score!: number;
   heat_score!: number;
   aqi_score!: number;
+  combined_score!: number;
+  raw_temp!: number;
+  raw_humidity!: number;
+  raw_uv!: number;
+  raw_aqi!: number;
   raw_data!: Record<string, unknown>;
+  created_at!: string;
+}
+
+export class RiskHistoryEntity extends BaseEntity<RiskHistoryEntity> {
+  id!: number;
+  risk_uuid!: string;
+  school_id!: string;
+  score!: number;
+  combined_score!: number;
   created_at!: string;
 }
 

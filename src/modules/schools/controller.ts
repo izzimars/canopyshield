@@ -55,16 +55,15 @@ export class SchoolController {
     return handleCustomSuccess(res, 'School risk fetched successfully', StatusCodes.OK, data);
   }
 
-  async getSchoolRiskHistory(req: Request, res: Response) {
+  async getSchoolRiskById(req: Request, res: Response) {
     logger.info('schools::controller::getSchoolRiskHistory');
     const params = new IdParamDto(req.params);
-    const query = new RiskHistoryQueryDto(req.query as any);
     
-    const data = await this.schoolService.getRiskHistory(params.id, query.days);
+    const data = await this.schoolService.getRiskById(params.riskId);
     if (data instanceof NotFoundException) {
       return handleCustomError(res, data, StatusCodes.NOT_FOUND, 'SCHOOL_NOT_FOUND');
     }
-    return handleCustomSuccess(res, 'School risk history fetched successfully', StatusCodes.OK, data);
+    return handleCustomSuccess(res, 'risk fetched successfully', StatusCodes.OK, data);
   }
 
   async getSchoolPrediction(req: Request, res: Response) {

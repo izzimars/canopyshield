@@ -16,8 +16,8 @@ router.get('/schools/leaderboard/risk', requireAuth, WatchAsyncController(school
 router.get('/schools/leaderboard/trees', requireAuth, WatchAsyncController(schoolController.getTreesLeaderboard.bind(schoolController)));
 
 // 3. Dynamic routes (with :id parameter)
-router.get('/schools/:id/risk', requireAuth, validate(idParamSchema), pendingSchool(), WatchAsyncController(schoolController.getSchoolRisk.bind(schoolController)));
-router.get('/schools/:id/risk/history', requireAuth, validate(riskHistorySchema), pendingSchool(), WatchAsyncController(schoolController.getSchoolRiskHistory.bind(schoolController)));
+router.get('/schools/:id/risk-history', requireAuth, validate(idParamSchema), pendingSchool(), WatchAsyncController(schoolController.getSchoolRisk.bind(schoolController)));
+router.get('/schools/:id/risk-history/:riskId', requireAuth, validate(riskHistorySchema), pendingSchool(), WatchAsyncController(schoolController.getSchoolRiskById.bind(schoolController)));
 router.get('/schools/:id/prediction', requireAuth, validate(idParamSchema), pendingSchool(), WatchAsyncController(schoolController.getSchoolPrediction.bind(schoolController)));
 router.get('/schools/:id/trees', requireAuth, validate(idParamSchema), pendingSchool(), WatchAsyncController(schoolController.getSchoolTrees.bind(schoolController)));
 

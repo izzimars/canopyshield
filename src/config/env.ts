@@ -16,6 +16,7 @@ const envSpecificSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
   OPENWEATHERMAP_API_KEY: z.string().min(1),
+  OPENAQ_API_KEY: z.string().min(1).optional(),
   VAPID_SUBJECT: z.string().min(1).default('mailto:admin@canopyshield.io'),
   VAPID_PUBLIC_KEY: z.string().min(1),
   VAPID_PRIVATE_KEY: z.string().min(1),
@@ -31,7 +32,6 @@ const envSpecificSchema = z.object({
   MAIL_HOST: z.string().min(1),
   MAIL_PORT: z.coerce.number().int().positive().optional(),
   USER_MAIL: z.string().min(1),
-
 });
 
 type EnvSpecific = z.infer<typeof envSpecificSchema>;
@@ -66,6 +66,7 @@ function selectEnvironmentVariables(rawEnv: Record<string, string | undefined>):
     JWT_ACCESS_SECRET: rawEnv[`${prefix}_JWT_ACCESS_SECRET`],
     JWT_REFRESH_SECRET: rawEnv[`${prefix}_JWT_REFRESH_SECRET`],
     OPENWEATHERMAP_API_KEY: rawEnv[`${prefix}_OPENWEATHERMAP_API_KEY`],
+    OPENAQ_API_KEY: rawEnv[`${prefix}_OPENAQ_API_KEY`],
     VAPID_SUBJECT: rawEnv[`${prefix}_VAPID_SUBJECT`],
     VAPID_PUBLIC_KEY: rawEnv[`${prefix}_VAPID_PUBLIC_KEY`],
     VAPID_PRIVATE_KEY: rawEnv[`${prefix}_VAPID_PRIVATE_KEY`],
@@ -103,6 +104,7 @@ export const REDIS_URL = parsedEnv.REDIS_URL;
 export const JWT_ACCESS_SECRET = parsedEnv.JWT_ACCESS_SECRET;
 export const JWT_REFRESH_SECRET = parsedEnv.JWT_REFRESH_SECRET;
 export const OPENWEATHERMAP_API_KEY = parsedEnv.OPENWEATHERMAP_API_KEY;
+export const OPENAQ_API_KEY = parsedEnv.OPENAQ_API_KEY;
 export const VAPID_SUBJECT = parsedEnv.VAPID_SUBJECT;
 export const VAPID_PUBLIC_KEY = parsedEnv.VAPID_PUBLIC_KEY;
 export const VAPID_PRIVATE_KEY = parsedEnv.VAPID_PRIVATE_KEY;

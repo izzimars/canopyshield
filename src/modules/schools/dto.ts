@@ -2,6 +2,7 @@ import { BaseEntity } from '../../shared/utils/base-entity';
 
 export class IdParamDto extends BaseEntity<IdParamDto> {
   id!: string;
+  riskId!: string;
 }
 
 export class RiskHistoryQueryDto extends BaseEntity<RiskHistoryQueryDto> {

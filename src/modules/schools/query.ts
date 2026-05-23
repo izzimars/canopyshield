@@ -56,17 +56,31 @@ const schoolQueries = {
   createRiskSnapshot: `
     INSERT INTO risk_snapshots (school_id, score, heat_score, aqi_score, raw_data, combined_score, raw_temp, raw_humidity, raw_uv, raw_aqi)
     VALUES ($1, $2, $3, $4, $5, $2, $6, $7, $8, $9)
-    RETURNING risk_uuid, school_id, score, heat_score, aqi_score, raw_data, created_at
+    RETURNING risk_uuid, school_id, score, heat_score, aqi_score, combined_score, raw_temp, raw_humidity, raw_uv, raw_aqi, raw_data, created_at
   `,
+
+  findRiskBySchoolId: `
+    SELECT id, risk_uuid, school_id, score, combined_score, created_at
+    FROM risk_snapshots
+    WHERE school_id = $1
+    ORDER BY created_at DESC
+  `,
+
+  findByIdRiskSnapshot: `
+    SELECT risk_uuid, school_id, score, heat_score, aqi_score, combined_score, raw_temp, raw_humidity, raw_uv, raw_aqi, raw_data, created_at
+    FROM risk_snapshots
+    WHERE risk_uuid = $1
+  `,
+
   findLatestRisk: `
-    SELECT risk_uuid, school_id, score, heat_score, aqi_score, raw_data, created_at
+    SELECT risk_uuid, school_id, score, heat_score, aqi_score, combined_score, raw_temp, raw_humidity, raw_uv, raw_aqi, raw_data, created_at
     FROM risk_snapshots
     WHERE school_id = $1
     ORDER BY created_at DESC
     LIMIT $2
   `,
   findRiskHistory: `
-    SELECT risk_uuid, school_id, score, heat_score, aqi_score, raw_data, created_at
+    SELECT risk_uuid, school_id, score, heat_score, aqi_score, combined_score, raw_temp, raw_humidity, raw_uv, raw_aqi, raw_data, created_at
     FROM risk_snapshots
     WHERE school_id = $1
       AND created_at >= now() - ($2::text || ' days')::interval

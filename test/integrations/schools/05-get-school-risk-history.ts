@@ -14,6 +14,8 @@ describe('GET /api/v1/schools/:uuid/risk/history', () => {
     expect(response.body.data[0]).to.have.property('score');
     expect(response.body.data[0]).to.have.property('aqi_score');
     expect(response.body.data[0]).to.have.property('heat_score');
+    expect(response.body.data[0]).to.have.property('combined_score');
+    expect(response.body.data[0]).to.have.property('raw_aqi');
   });
 
     it('should return the school risk score for Admin', async () => {
