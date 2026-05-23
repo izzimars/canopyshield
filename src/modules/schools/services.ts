@@ -452,7 +452,6 @@ class SchoolRiskServiceImpl implements SchoolRiskService {
         forecast = freshForecast;
         air = freshAir;
 
-        console.log('Fetched weather and air data for school:');
         await redis.set(weatherCacheKey, JSON.stringify({ current, forecast, air }), 'EX', 1500);
       }
 
