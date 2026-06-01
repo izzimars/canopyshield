@@ -29,9 +29,13 @@ const envSpecificSchema = z.object({
   EMAIL_API_KEY: z.string().min(1),
   EMAIL_FROM: z.string().min(1),
   EMAIL_FROM_NAME: z.string().min(1),
-  MAIL_HOST: z.string().min(1),
+  MAIL_HOST: z.string().min(1).optional(),
   MAIL_PORT: z.coerce.number().int().positive().optional(),
   USER_MAIL: z.string().min(1),
+  PAYSTACK_SECRET_KEY: z.string().min(1).optional(),
+  PAYSTACK_PUBLIC_KEY: z.string().min(1).optional(),
+  TREE_PRICE: z.coerce.number().int().positive().default(5000),
+  PAYSTACK_CALLBACK_URL: z.string().min(1).optional(),
 });
 
 type EnvSpecific = z.infer<typeof envSpecificSchema>;
@@ -82,6 +86,10 @@ function selectEnvironmentVariables(rawEnv: Record<string, string | undefined>):
     MAIL_HOST: rawEnv[`${prefix}_MAIL_HOST`],
     MAIL_PORT: rawEnv[`${prefix}_MAIL_PORT`],
     USER_MAIL: rawEnv[`${prefix}_USER_MAIL`] || rawEnv[`${prefix}_EMAIL_FROM`],
+    PAYSTACK_SECRET_KEY: rawEnv[`${prefix}_PAYSTACK_SECRET_KEY`],
+    PAYSTACK_PUBLIC_KEY: rawEnv[`${prefix}_PAYSTACK_PUBLIC_KEY`],
+    TREE_PRICE: rawEnv[`${prefix}_TREE_PRICE`],
+    PAYSTACK_CALLBACK_URL: rawEnv[`${prefix}_PAYSTACK_CALLBACK_URL`],
   };
 
   // Parse the raw object with the schema – this coerces strings to numbers
@@ -121,6 +129,10 @@ export const EMAIL_FROM_NAME = parsedEnv.EMAIL_FROM_NAME;
 export const MAIL_HOST = parsedEnv.MAIL_HOST;
 export const MAIL_PORT = parsedEnv.MAIL_PORT;
 export const USER_MAIL = parsedEnv.USER_MAIL;
+export const PAYSTACK_SECRET_KEY = parsedEnv.PAYSTACK_SECRET_KEY;
+export const PAYSTACK_PUBLIC_KEY = parsedEnv.PAYSTACK_PUBLIC_KEY;
+export const TREE_PRICE = parsedEnv.TREE_PRICE;
+export const PAYSTACK_CALLBACK_URL = parsedEnv.PAYSTACK_CALLBACK_URL;
 export const JwtSignOptions: JwtSignature = {
   issuer: 'CanopyShield',
   subject: 'Authentication Token',

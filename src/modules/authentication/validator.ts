@@ -60,7 +60,7 @@ export const resendOtpSchema = z.object({
 // Export types for use in services
 export type RegisterSchemaType = z.infer<typeof registerSchema>['body'];
 export type LoginSchemaType = z.infer<typeof loginSchema>['body'];
-export type VerifyOtpSchemaType = z.infer<typeof verifyOtpSchema>['query'];
+export type VerifyOtpSchemaType = z.infer<typeof verifyOtpSchema>['body'];
 export type ForgotPasswordSchemaType = z.infer<typeof forgotPasswordSchema>['body'];
 export type ResetPasswordSchemaType = z.infer<typeof resetPasswordSchema>['body'];
 export type ResendOtpSchemaType = z.infer<typeof resendOtpSchema>['body'];

@@ -49,7 +49,6 @@ export default function AuthMiddleware(tokenType: string) {
     req.user = {
       id: user.user_uuid,
       uuid: user.user_uuid,
-      user_uuid: user.user_uuid,
       email: user.email,
       role: user.role,
       jti: String(decoded.id),

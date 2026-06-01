@@ -12,8 +12,7 @@ export interface AuthRequest extends Request {
   claim?: any;
   user?: {
     id: string;
-    uuid?: string;
-    user_uuid?: string;
+    uuid: string;
     email: string;
     role: string;
     jti: string;

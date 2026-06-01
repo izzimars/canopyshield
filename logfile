@@ -1116,3 +1116,27 @@
 2026-05-19 15:07:14.937 WAT [84247] STATEMENT:  
 	    UPDATE school_requests SET status = 'approved', admin_notes = null, updated_at = now() WHERE request_uuid = 'schd5306fd3-058d-4150-8991-d42ba1812e3c' RETURNING *
 	  
+2026-05-19 17:05:04.106 WAT [2223] LOG:  received smart shutdown request
+2026-05-19 17:05:04.109 WAT [2223] LOG:  background worker "logical replication launcher" (PID 2232) exited with exit code 1
+2026-05-19 17:05:04.109 WAT [2227] LOG:  shutting down
+2026-05-19 17:05:04.120 WAT [2223] LOG:  database system is shut down
+2026-05-19 22:27:56.791 WAT [2683] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-19 22:27:56.794 WAT [2683] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-19 22:27:56.794 WAT [2683] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-19 22:27:56.795 WAT [2683] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-19 22:27:56.842 WAT [2684] LOG:  database system was shut down at 2026-05-19 17:05:04 WAT
+2026-05-19 22:27:56.858 WAT [2683] LOG:  database system is ready to accept connections
+2026-05-20 12:37:41.809 WAT [2683] LOG:  received smart shutdown request
+2026-05-20 12:37:41.814 WAT [2683] LOG:  background worker "logical replication launcher" (PID 2690) exited with exit code 1
+2026-05-20 12:37:41.815 WAT [2685] LOG:  shutting down
+2026-05-20 12:37:41.849 WAT [2683] LOG:  database system is shut down
+2026-05-21 10:00:46.770 WAT [3644] LOG:  starting PostgreSQL 14.18 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+2026-05-21 10:00:46.772 WAT [3644] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-21 10:00:46.772 WAT [3644] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-21 10:00:46.772 WAT [3644] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-21 10:00:46.809 WAT [3645] LOG:  database system was shut down at 2026-05-20 12:37:41 WAT
+2026-05-21 10:00:46.819 WAT [3644] LOG:  database system is ready to accept connections
+2026-05-21 16:59:04.945 WAT [3644] LOG:  received smart shutdown request
+2026-05-21 16:59:04.951 WAT [3644] LOG:  background worker "logical replication launcher" (PID 3651) exited with exit code 1
+2026-05-21 16:59:04.951 WAT [3646] LOG:  shutting down
+2026-05-21 16:59:04.976 WAT [3644] LOG:  database system is shut down

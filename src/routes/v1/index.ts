@@ -6,6 +6,9 @@ import usersRouter from '../../modules/users/routes';
 import pushRouter from '../../modules/push/routes';
 import adminRouter from '../../modules/admin/routes';
 import schoolRequestsRouter from '../../modules/schoolRequests/routes';
+import crowdfundingRouter from '../../modules/crowdfunding/routes';
+import paymentRouter from '../../modules/payments/routes';
+import app from '../../config/express';
 
 const appRouter = express.Router();
 
@@ -23,6 +26,8 @@ appRouter.use(engagementRouter);
 appRouter.use(usersRouter);
 appRouter.use(pushRouter);
 appRouter.use(schoolRequestsRouter);
+appRouter.use(crowdfundingRouter);
+appRouter.use(paymentRouter);
 appRouter.use('/admin', adminRouter);
 
 export const Router = appRouter;
